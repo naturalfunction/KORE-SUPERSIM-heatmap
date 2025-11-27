@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super SIM Heatmap</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/vendor/leaflet/leaflet.css') }}" />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background-color: #0f172a;
+        color: #f8fafc;
+      }
+      .app {
+        display: flex;
+        height: 100%;
+      }
+      .sidebar {
+        width: min(360px, 35vw);
+        background: linear-gradient(180deg, #0f172a 0%, #030712 100%);
+        border-right: 1px solid rgba(148, 163, 184, 0.2);
+        padding: 1.25rem;
+        box-sizing: border-box;
+        overflow-y: auto;
+      }
+      .sidebar h1 {
+        font-size: 1.1rem;
+        margin: 0 0 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #cbd5f5;
+      }
+      .event-filters {
+        margin: 0 0 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      .layer-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 23, 42, 0.7);
+        border-radius: 0.75rem;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+      .layer-toggle input {
+        accent-color: currentColor;
+      }
+      .layer-toggle--online {
+        color: #4ade80;
+      }
+      .layer-toggle--offline {
+        color: #f87171;
+      }
+      .event-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .event-card {
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 0.85rem;
+        padding: 0.85rem;
+        cursor: pointer;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+      }
+      .event-card:hover {
+        border-color: rgba(248, 250, 252, 0.7);
+        transform: translateY(-1px);
+      }
+      .event-card[data-has-location="false"] {
+        cursor: default;
+        opacity: 0.6;
+      }
+      .event-card[data-has-location="false"]:hover {
+        border-color: rgba(148, 163, 184, 0.2);
+        transform: none;
+      }
+      .event-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+      .event-meta {
+        font-size: 0.75rem;
+        color: #cbd5f5;
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+      .event-subline {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        opacity: 0.9;
+      }
+      .event-details {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        font-size: 0.72rem;
+        color: #94a3b8;
+      }
+      .event-network {
+        border-top: 1px solid rgba(148, 163, 184, 0.15);
+        margin-top: 0.5rem;
+        padding-top: 0.45rem;
+        font-size: 0.7rem;
+        color: #94a3b8;
+        display: flex;
+        gap: 0.45rem;
+        align-items: center;
+      }
+      .event-network span {
+        white-space: nowrap;
+      }
+      .event-type {
+        margin-top: 0.55rem;
+        font-size: 0.75rem;
+        color: #cbd5f5;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+      }
+      .event-status {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .status-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .event-status--online {
+        color: #4ade80;
+      }
+      .event-status--online .status-dot {
+        background: #4ade80;
+        box-shadow: 0 0 6px rgba(74, 222, 128, 0.7);
+      }
+      .event-status--offline {
+        color: #f87171;
+      }
+      .event-status--offline .status-dot {
+        background: #f87171;
+        box-shadow: 0 0 6px rgba(248, 113, 113, 0.7);
+      }
+      .event-warning {
+        margin-top: 0.4rem;
+        font-size: 0.7rem;
+        color: #f97316;
+      }
+      .event-empty {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        text-align: center;
+        padding: 1rem 0;
+      }
+      .load-more {
+        margin-top: 1rem;
+        width: 100%;
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        background: rgba(15, 23, 42, 0.7);
+        color: #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease;
+      }
+      .load-more:hover:enabled {
+        border-color: rgba(248, 250, 252, 0.8);
+        background: rgba(30, 41, 59, 0.8);
+      }
+      .load-more:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .map-wrapper {
+        position: relative;
+        flex: 1;
+      }
+      .map-controls {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        z-index: 1000;
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+      footer {
+        position: absolute;
+        bottom: 0.75rem;
+        right: 1rem;
+        background: rgba(15, 23, 42, 0.7);
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.75rem;
+        font-size: 0.85rem;
+        z-index: 1000;
+      }
+      .timeline {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        width: min(420px, calc(100% - 15rem));
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        background: rgba(15, 23, 42, 0.85);
+        padding: 0.6rem 0.8rem;
+        border-radius: 0.75rem;
+        z-index: 1000;
+      }
+      .timeline label {
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #cbd5f5;
+      }
+      .timeline-input {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+      .timeline-input input[type="range"] {
+        flex: 1;
+      }
+      .timeline-value {
+        font-size: 0.8rem;
+        color: #f8fafc;
+        min-width: 120px;
+        text-align: right;
+      }
+      .timeline-stats {
+        display: flex;
+        gap: 0.75rem;
+        font-size: 0.75rem;
+        color: #e2e8f0;
+      }
+      .timeline-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+      .timeline-stat--online {
+        color: #4ade80;
+      }
+      .timeline-stat--offline {
+        color: #f87171;
+      }
+      .timeline-marks-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.7rem;
+        color: #cbd5f5;
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <h1>Super SIM Events</h1>
+        <div class="event-filters">
+          <label class="layer-toggle layer-toggle--online">
+            <input type="checkbox" id="toggle-online" checked />
+            <span>Online Layer</span>
+          </label>
+          <label class="layer-toggle layer-toggle--offline">
+            <input type="checkbox" id="toggle-offline" checked />
+            <span>Offline Layer</span>
+          </label>
+        </div>
+        <div id="event-list" class="event-list">
+          <div class="event-empty">Waiting for webhook events...</div>
+        </div>
+        <button id="load-more" class="load-more">Load More</button>
+      </aside>
+      <div class="map-wrapper">
+        <div class="map-controls">
+          <button id="reset-view" class="control-button">Show All</button>
+        </div>
+        <div id="map"></div>
+        <div class="timeline" id="timeline-panel" style="display: none">
+          <label>Timeline</label>
+          <div class="timeline-input">
+            <input type="range" id="timeline-slider" min="0" max="0" value="0" list="timeline-marks" />
+            <div class="timeline-value" id="timeline-value">--</div>
+          </div>
+          <datalist id="timeline-marks"></datalist>
+          <div class="timeline-marks-labels" id="timeline-labels"></div>
+          <div class="timeline-stats">
+            <span class="timeline-stat timeline-stat--online">Online: <span id="timeline-online-count">0</span></span>
+            <span class="timeline-stat timeline-stat--offline">Offline: <span id="timeline-offline-count">0</span></span>
+          </div>
+        </div>
+        <footer>
+          Data updates automatically when new webhook events arrive.
+        </footer>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', path='/vendor/leaflet/leaflet.js') }}"></script>
+    <script src="{{ url_for('static', path='/vendor/leaflet-heat/leaflet-heat.js') }}"></script>
+    <script>
+      const defaultCenter = [15, 0];
+      const defaultZoom = 3;
+      const EVENTS_REFRESH_MS = 5000;
+      const HEAT_REFRESH_MS = 10000;
+      const EVENTS_PAGE_SIZE = 50;
+      const MAX_EVENT_LIMIT = 1000;
+
+      const map = L.map("map", {
+        worldCopyJump: true,
+        minZoom: 2,
+      }).setView(defaultCenter, defaultZoom);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      const baseHeatOptions = {
+        radius: 25,
+        blur: 20,
+        maxZoom: 17,
+      };
+      const onlineLayer = L.heatLayer([], {
+        ...baseHeatOptions,
+        gradient: {
+          0.2: "#bbf7d0",
+          0.4: "#4ade80",
+          1: "#166534",
+        },
+      }).addTo(map);
+      const offlineLayer = L.heatLayer([], {
+        ...baseHeatOptions,
+        gradient: {
+          0.2: "#fecaca",
+          0.4: "#f87171",
+          1: "#991b1b",
+        },
+      }).addTo(map);
+      const eventListElement = document.getElementById("event-list");
+      const loadMoreButton = document.getElementById("load-more");
+      const timelinePanel = document.getElementById("timeline-panel");
+      const timelineSlider = document.getElementById("timeline-slider");
+      const timelineValue = document.getElementById("timeline-value");
+      const timelineMarks = document.getElementById("timeline-marks");
+      const timelineLabels = document.getElementById("timeline-labels");
+      const timelineOnlineCount = document.getElementById("timeline-online-count");
+      const timelineOfflineCount = document.getElementById("timeline-offline-count");
+      const resetViewButton = document.getElementById("reset-view");
+      const onlineToggle = document.getElementById("toggle-online");
+      const offlineToggle = document.getElementById("toggle-offline");
+      let onlineEnabled = onlineToggle.checked;
+      let offlineEnabled = offlineToggle.checked;
+      let lastHeatmapBounds = null;
+      let allHeatmapPoints = { online: [], offline: [] };
+      let lastHeatmapPoints = { online: [], offline: [] };
+      let currentEventLimit = EVENTS_PAGE_SIZE;
+      loadMoreButton.style.visibility = "hidden";
+      loadMoreButton.disabled = true;
+      let timelineBounds = { min: null, max: null };
+      let currentTimeline = null;
+
+      function fetchNoCache(url) {
+        const separator = url.includes("?") ? "&" : "?";
+        return fetch(`${url}${separator}_=${Date.now()}`, { cache: "no-store" });
+      }
+
+      function setHeatOptions(layer) {
+        const zoom = map.getZoom();
+        const radius = zoom <= 3 ? 50 : zoom <= 5 ? 35 : 25;
+        const blur = zoom <= 3 ? 40 : zoom <= 5 ? 30 : 20;
+        layer.setOptions({ radius, blur });
+      }
+
+      function filterPoints(points) {
+        if (!points) return [];
+        return points.filter((point) => {
+          if (!currentTimeline) return true;
+          return typeof point.timestamp === "number" ? point.timestamp <= currentTimeline : true;
+        });
+      }
+
+      function applyLayerVisibility() {
+        const filteredOnline = filterPoints(allHeatmapPoints.online);
+        const filteredOffline = filterPoints(allHeatmapPoints.offline);
+        const heatOnline = filteredOnline.map((point) => [point.lat, point.lon, point.intensity]);
+        const heatOffline = filteredOffline.map((point) => [point.lat, point.lon, point.intensity]);
+        lastHeatmapPoints = { online: heatOnline, offline: heatOffline };
+
+        const allDevices = new Set(
+          [...allHeatmapPoints.online, ...allHeatmapPoints.offline]
+            .map((point) => point.iccid)
+            .filter(Boolean)
+        );
+        const iccidStatus = new Map();
+        const registerState = (point) => {
+          if (!point.iccid || typeof point.timestamp !== "number") return;
+          if (currentTimeline !== null && point.timestamp > currentTimeline) return;
+          const prev = iccidStatus.get(point.iccid);
+          if (point.status === "offline") {
+            if (!prev || prev.timestamp < point.timestamp) {
+              iccidStatus.set(point.iccid, { status: "offline", timestamp: point.timestamp });
+            }
+          } else {
+            if (!prev) {
+              iccidStatus.set(point.iccid, { status: "online", timestamp: point.timestamp });
+            } else if (prev.status === "online") {
+              iccidStatus.set(point.iccid, { status: "online", timestamp: Math.max(prev.timestamp, point.timestamp) });
+            }
+          }
+        };
+        allHeatmapPoints.online.forEach(registerState);
+        allHeatmapPoints.offline.forEach(registerState);
+        let onlineCount = 0;
+        let offlineCount = 0;
+        allDevices.forEach((iccid) => {
+          const entry = iccidStatus.get(iccid);
+          if (!entry || entry.status === "offline") {
+            offlineCount += 1;
+          } else {
+            onlineCount += 1;
+          }
+        });
+        timelineOnlineCount.textContent = onlineCount;
+        timelineOfflineCount.textContent = offlineCount;
+
+        if (onlineEnabled) {
+          if (!map.hasLayer(onlineLayer)) {
+            onlineLayer.addTo(map);
+          }
+          setHeatOptions(onlineLayer);
+          onlineLayer.setLatLngs(heatOnline);
+        } else if (map.hasLayer(onlineLayer)) {
+          map.removeLayer(onlineLayer);
+        }
+
+        if (offlineEnabled) {
+          if (!map.hasLayer(offlineLayer)) {
+            offlineLayer.addTo(map);
+          }
+          setHeatOptions(offlineLayer);
+          offlineLayer.setLatLngs(heatOffline);
+        } else if (map.hasLayer(offlineLayer)) {
+          map.removeLayer(offlineLayer);
+        }
+      }
+
+      function normalizePoints(points) {
+        return (points || []).map((point) => ({
+          lat: point.lat,
+          lon: point.lon,
+          intensity: point.intensity,
+          timestamp: point.timestamp ? new Date(point.timestamp).getTime() : null,
+          iccid: point.iccid || null,
+          status: point.status || "online",
+        }));
+      }
+
+      function updateTimeline(pointsOnline, pointsOffline) {
+        const timestamps = [
+          ...pointsOnline.map((point) => point.timestamp),
+          ...pointsOffline.map((point) => point.timestamp),
+        ].filter((value) => typeof value === "number" && !Number.isNaN(value));
+        if (!timestamps.length) {
+          timelinePanel.style.display = "none";
+          currentTimeline = null;
+          timelineValue.textContent = "--";
+          timelineMarks.innerHTML = "";
+          timelineLabels.innerHTML = "";
+          return { online: [], offline: [] };
+        }
+
+        const latest = Math.max(...timestamps);
+        const dayStartDate = new Date(latest);
+        dayStartDate.setHours(0, 0, 0, 0);
+        const dayEndDate = new Date(dayStartDate);
+        dayEndDate.setHours(23, 59, 59, 999);
+        const dayStart = dayStartDate.getTime();
+        const dayEnd = dayEndDate.getTime();
+
+        const filterByDay = (points) =>
+          points.filter(
+            (point) =>
+              typeof point.timestamp === "number" &&
+              point.timestamp >= dayStart &&
+              point.timestamp <= dayEnd
+          );
+
+        const filteredOnline = filterByDay(pointsOnline);
+        const filteredOffline = filterByDay(pointsOffline);
+        const filteredTimestamps = [
+          ...filteredOnline.map((point) => point.timestamp),
+          ...filteredOffline.map((point) => point.timestamp),
+        ];
+        if (!filteredTimestamps.length) {
+          timelinePanel.style.display = "none";
+          timelineValue.textContent = "--";
+          timelineMarks.innerHTML = "";
+          timelineLabels.innerHTML = "";
+          currentTimeline = null;
+          return { online: filteredOnline, offline: filteredOffline };
+        }
+
+        timelineBounds = { min: dayStart, max: dayEnd };
+        if (currentTimeline === null || currentTimeline < dayStart || currentTimeline > dayEnd) {
+          currentTimeline = Math.max(...filteredTimestamps);
+        }
+        timelineSlider.min = String(dayStart);
+        timelineSlider.max = String(dayEnd);
+        timelineSlider.step = String(60 * 1000);
+        timelineSlider.value = String(currentTimeline);
+        timelineValue.textContent = new Date(currentTimeline).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        const hourMillis = 60 * 60 * 1000;
+        const marks = [];
+        for (let t = dayStart; t <= dayEnd; t += hourMillis) {
+          marks.push(`<option value="${t}"></option>`);
+        }
+        timelineMarks.innerHTML = marks.join("");
+        timelineLabels.innerHTML = [dayStart, dayStart + 12 * hourMillis, dayEnd]
+          .map((time, index) => {
+            const text = new Date(time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            return `<span>${text}${index === 2 ? " (23:59)" : ""}</span>`;
+          })
+          .join("");
+        timelinePanel.style.display = "flex";
+        return { online: filteredOnline, offline: filteredOffline };
+      }
+
+      async function fetchHeatmap() {
+        try {
+          const response = await fetchNoCache("/heatmap");
+          if (!response.ok) throw new Error("Request failed");
+          const payload = await response.json();
+          const onlinePoints = normalizePoints(payload.online);
+          const offlinePoints = normalizePoints(payload.offline);
+          const filtered = updateTimeline(onlinePoints, offlinePoints);
+          allHeatmapPoints = filtered;
+          applyLayerVisibility();
+          const latLons = [
+            ...onlinePoints.map((point) => [point.lat, point.lon]),
+            ...offlinePoints.map((point) => [point.lat, point.lon]),
+          ].filter(
+            ([lat, lon]) =>
+              typeof lat === "number" &&
+              !Number.isNaN(lat) &&
+              typeof lon === "number" &&
+              !Number.isNaN(lon)
+          );
+          lastHeatmapBounds = latLons.length ? L.latLngBounds(latLons).pad(0.25) : null;
+
+        } catch (error) {
+          console.error("Failed to refresh heatmap", error);
+        }
+      }
+
+      fetchHeatmap();
+      setInterval(fetchHeatmap, HEAT_REFRESH_MS);
+      onlineToggle.addEventListener("change", () => {
+        onlineEnabled = onlineToggle.checked;
+        applyLayerVisibility();
+      });
+      offlineToggle.addEventListener("change", () => {
+        offlineEnabled = offlineToggle.checked;
+        applyLayerVisibility();
+      });
+      map.on("zoomend", () => {
+        applyLayerVisibility();
+      });
+      timelineSlider.addEventListener("input", (event) => {
+        const value = Number(event.target.value);
+        if (!Number.isNaN(value)) {
+          currentTimeline = value;
+          timelineValue.textContent = new Date(value).toLocaleString();
+          applyLayerVisibility();
+        }
+      });
+      resetViewButton.addEventListener("click", () => {
+        if (lastHeatmapBounds) {
+          map.fitBounds(lastHeatmapBounds, {
+            padding: [60, 60],
+            maxZoom: 6,
+          });
+        } else {
+          map.setView(defaultCenter, defaultZoom, { animate: true });
+        }
+        if (timelineBounds.max) {
+          currentTimeline = timelineBounds.max;
+          timelineSlider.value = String(timelineBounds.max);
+          timelineValue.textContent = new Date(timelineBounds.max).toLocaleString();
+          applyLayerVisibility();
+        }
+      });
+
+      function escapeHtml(input) {
+        return String(input || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      const EVENT_TYPE_LABELS = {
+        "com.twilio.iot.supersim.connection.data-session.started": {
+          label: "Data-Session: Started",
+          status: "online",
+        },
+        "com.twilio.iot.supersim.connection.data-session.updated": {
+          label: "Data-Session: Updated",
+          status: "online",
+        },
+        "com.twilio.iot.supersim.connection.data-session.ended": {
+          label: "Data-Session: Ended",
+          status: "offline",
+        },
+      };
+
+      function getEventTypeMeta(eventType) {
+        const normalized = (eventType || "").toLowerCase();
+        const meta = EVENT_TYPE_LABELS[normalized];
+        if (meta) return meta;
+        return {
+          label: (eventType || "Event").replace(/^com\.twilio\.iot\.?/i, "").toUpperCase(),
+          status: null,
+        };
+      }
+
+      function renderEvents(events) {
+        if (!events.length) {
+          eventListElement.innerHTML = '<div class="event-empty">No events stored yet.</div>';
+          return;
+        }
+
+        const sortedEvents = [...events].sort((a, b) => {
+          const aTime = a.event_time ? new Date(a.event_time).getTime() : 0;
+          const bTime = b.event_time ? new Date(b.event_time).getTime() : 0;
+          return bTime - aTime;
+        });
+
+        eventListElement.innerHTML = sortedEvents
+          .map((event) => {
+            const simName = escapeHtml(event.sim_unique_name || "SIM " + event.sim_iccid);
+            const iccid = escapeHtml(event.sim_iccid || "N/A");
+            const eventTypeMeta = getEventTypeMeta(event.event_type);
+            const timestamp = event.event_time
+              ? new Date(event.event_time).toLocaleString()
+              : "Unknown time";
+            const hasLocation = event.latitude !== null && event.longitude !== null;
+            const warning = hasLocation ? "" : '<div class="event-warning">No tower location</div>';
+            const cellId = escapeHtml(event.cell_id || "N/A");
+            const networkName = escapeHtml(event.network_name || "Unknown network");
+            const isoCountry = escapeHtml(event.network_iso_country || "??");
+            const ratType = escapeHtml(event.rat_type || "n/a");
+            return `
+              <div class="event-card" data-lat="${event.latitude ?? ""}" data-lon="${event.longitude ?? ""}" data-has-location="${hasLocation}">
+                <div class="event-title">${simName}</div>
+                <div class="event-meta">
+                  <div>${iccid}</div>
+                  <div class="event-details">
+                    <span>${timestamp}</span>
+                    <span title="Tower ID">Tower ID: ${cellId}</span>
+                  </div>
+                </div>
+                <div class="event-network">
+                  <span>${networkName}</span>
+                  <span>${isoCountry}</span>
+                  <span>${ratType}</span>
+                </div>
+                <div class="event-type">
+                  <span>${escapeHtml(eventTypeMeta.label)}</span>
+                  ${
+                    eventTypeMeta.status
+                      ? `<span class="event-status event-status--${eventTypeMeta.status}">
+                          <span class="status-dot"></span>
+                          ${eventTypeMeta.status === "online" ? "Online" : "Offline"}
+                        </span>`
+                      : ""
+                  }
+                </div>
+                ${warning}
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      async function fetchEvents() {
+        try {
+          const response = await fetchNoCache(`/events?limit=${currentEventLimit}`);
+          if (!response.ok) throw new Error("Request failed");
+          const events = await response.json();
+          renderEvents(events);
+          const canLoadMore = events.length === currentEventLimit && currentEventLimit < MAX_EVENT_LIMIT;
+          loadMoreButton.disabled = !canLoadMore;
+          loadMoreButton.style.visibility = events.length ? "visible" : "hidden";
+        } catch (error) {
+          console.error("Failed to load events", error);
+          eventListElement.innerHTML =
+            '<div class="event-empty">Failed to load events. Check the server logs.</div>';
+          loadMoreButton.disabled = true;
+        }
+      }
+
+      eventListElement.addEventListener("click", (event) => {
+        const card = event.target.closest(".event-card");
+        if (!card || card.dataset.hasLocation !== "true") return;
+
+        const lat = parseFloat(card.dataset.lat);
+        const lon = parseFloat(card.dataset.lon);
+        if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+
+        map.flyTo([lat, lon], 20, { animate: false });
+      });
+
+      resetViewButton.addEventListener("click", () => {
+        if (lastHeatmapBounds) {
+          map.fitBounds(lastHeatmapBounds, {
+            padding: [60, 60],
+            maxZoom: 6,
+          });
+        } else {
+          map.setView(defaultCenter, defaultZoom, { animate: true });
+        }
+      });
+
+      loadMoreButton.addEventListener("click", () => {
+        const nextLimit = Math.min(currentEventLimit + EVENTS_PAGE_SIZE, MAX_EVENT_LIMIT);
+        if (nextLimit !== currentEventLimit) {
+          currentEventLimit = nextLimit;
+          fetchEvents();
+        }
+      });
+
+      fetchEvents();
+      setInterval(fetchEvents, EVENTS_REFRESH_MS);
+    </script>
+  </body>
+</html>
