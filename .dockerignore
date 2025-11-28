@@ -1,0 +1,44 @@
+# VCS
+.git
+.gitignore
+
+# Python caches and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# OS/files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build/test artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.cache/
+
+# Local data and logs
+events.db
+*.db
+*.sqlite*
+logs/
+
+# IDE
+.idea/
+.vscode/
+
+# Node (if any added later)
+node_modules/

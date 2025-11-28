@@ -1,12 +1,10 @@
 """Seed the webhook endpoint with randomized Super SIM events."""
 from __future__ import annotations
-
 import argparse
 import random
 import string
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterator, List, Sequence
-
 import httpx
 
 REGIONS = {
@@ -253,6 +251,12 @@ def main() -> None:
         default=20,
         help="Batch size when posting events",
     )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default="kore-events",
+        help="Value to set in the root 'source' field for each emitted event (used to identify demo runs)",
+    )
     args = parser.parse_args()
 
     target_regions = [args.region] if args.region else list(REGIONS.keys())
@@ -293,7 +297,15 @@ def main() -> None:
     total_sent = 0
     with httpx.Client(timeout=10) as client:
         for chunk in chunked(events, args.batch_size):
-            response = client.post(args.url, json=chunk)
+            # Override the top-level 'source' for demo identification if provided
+            payload = [
+                {
+                    **evt,
+                    "source": args.source or evt.get("source", "kore-events"),
+                }
+                for evt in chunk
+            ]
+            response = client.post(args.url, json=payload)
             response.raise_for_status()
             total_sent += len(chunk)
             print(f"Posted batch of {len(chunk)} events -> {response.json()}")
