@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    container_name: supersim-heatmap
+    ports:
+      - "8000:8000"
+    environment:
+      # Persist DB to a mounted volume inside the container
+      - DATABASE_URL=sqlite:////data/events.db
+      # Optional: set to true to see SQL logs
+      # - SQLALCHEMY_ECHO=true
+    volumes:
+      - supersim_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  supersim_data:
+    driver: local

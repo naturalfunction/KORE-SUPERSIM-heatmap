@@ -33,11 +33,34 @@
       }
       .sidebar h1 {
         font-size: 1.1rem;
-        margin: 0 0 1rem;
+        margin: 0;
         text-transform: uppercase;
         letter-spacing: 0.08em;
         color: #cbd5f5;
       }
+      .sidebar-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin: 0 0 1rem;
+      }
+      .demo-btn {
+        background: #facc15; /* yellow-400 */
+        color: #111827; /* gray-900 */
+        border: 1px solid rgba(0,0,0,0.15);
+        border-radius: 0.5rem;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: filter 0.15s ease, transform 0.08s ease;
+        white-space: nowrap;
+      }
+      .demo-btn:hover { filter: brightness(1.05); }
+      .demo-btn:active { transform: translateY(1px); }
       .event-filters {
         margin: 0 0 1rem;
         display: flex;
@@ -291,7 +314,10 @@
   <body>
     <div class="app">
       <aside class="sidebar">
-        <h1>Super SIM Events</h1>
+        <div class="sidebar-header">
+          <h1>Super SIM Events</h1>
+          <button id="demo-toggle" class="demo-btn" title="Populate demo data">Try it out!</button>
+        </div>
         <div class="event-filters">
           <label class="layer-toggle layer-toggle--online">
             <input type="checkbox" id="toggle-online" checked />
@@ -382,6 +408,7 @@
       const timelineOnlineCount = document.getElementById("timeline-online-count");
       const timelineOfflineCount = document.getElementById("timeline-offline-count");
       const resetViewButton = document.getElementById("reset-view");
+      const demoToggleButton = document.getElementById("demo-toggle");
       const onlineToggle = document.getElementById("toggle-online");
       const offlineToggle = document.getElementById("toggle-offline");
       let onlineEnabled = onlineToggle.checked;
@@ -398,6 +425,16 @@
       function fetchNoCache(url) {
         const separator = url.includes("?") ? "&" : "?";
         return fetch(`${url}${separator}_=${Date.now()}`, { cache: "no-store" });
+      }
+
+      async function postJson(url, body) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: body ? JSON.stringify(body) : null,
+        });
+        if (!response.ok) throw new Error(`POST ${url} failed`);
+        return response.json();
       }
 
       function setHeatOptions(layer) {
@@ -626,6 +663,49 @@
           timelineSlider.value = String(timelineBounds.max);
           timelineValue.textContent = new Date(timelineBounds.max).toLocaleString();
           applyLayerVisibility();
+        }
+      });
+
+      async function startDemo() {
+        demoToggleButton.disabled = true;
+        demoToggleButton.textContent = "Seeding...";
+        try {
+          await postJson("/demo/start");
+          await fetchHeatmap();
+          await fetchEvents();
+          demoToggleButton.textContent = "Exit Demo";
+          demoToggleButton.dataset.mode = "stop";
+        } catch (e) {
+          console.error(e);
+          demoToggleButton.textContent = "Try it out!";
+          demoToggleButton.dataset.mode = "start";
+        } finally {
+          demoToggleButton.disabled = false;
+        }
+      }
+
+      async function stopDemo() {
+        demoToggleButton.disabled = true;
+        demoToggleButton.textContent = "Cleaning...";
+        try {
+          await postJson("/demo/stop");
+          await fetchHeatmap();
+          await fetchEvents();
+          demoToggleButton.textContent = "Try it out!";
+          demoToggleButton.dataset.mode = "start";
+        } catch (e) {
+          console.error(e);
+        } finally {
+          demoToggleButton.disabled = false;
+        }
+      }
+
+      demoToggleButton.dataset.mode = "start";
+      demoToggleButton.addEventListener("click", () => {
+        if (demoToggleButton.dataset.mode === "start") {
+          startDemo();
+        } else {
+          stopDemo();
         }
       });
 

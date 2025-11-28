@@ -1,11 +1,10 @@
-"""Database configuration and helpers."""
 from __future__ import annotations
-
-import os
 from typing import Iterator
+import os
+from sqlmodel import SQLModel, Session, create_engine
 
-from sqlmodel import Session, SQLModel, create_engine
 
+# Read from env, default to local SQLite similar to previous implementation
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./events.db")
 
 engine = create_engine(
@@ -16,7 +15,7 @@ engine = create_engine(
 
 
 def init_db() -> None:
-    """Create database tables."""
+    """Create database tables for all SQLModel models."""
     SQLModel.metadata.create_all(engine)
 
 
